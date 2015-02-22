@@ -1,10 +1,16 @@
 #![feature(collections, core, io, path, rustc_private, std_misc, env, test)]
 
-#[macro_use] extern crate log;
-
+#[macro_use]
+extern crate log;
 extern crate syntax;
 extern crate collections;
 extern crate core;
+extern crate libc;
+
+//use std::c_str::CString;
+use libc::c_char;
+//for c string
+use std::ffi;
 
 #[cfg(not(test))]
 use racer::Match;
@@ -26,12 +32,12 @@ fn match_with_snippet_fn(m:Match) {
 
     let snippet = racer::snippets::snippet_for_match(&m);
     println!("MATCH {};{};{};{};{};{:?};{}", m.matchstr,
-                                    snippet,
-                                    linenum.to_string(),
-                                    charnum.to_string(),
-                                    m.filepath.as_str().unwrap(),
-                                    m.mtype,
-                                    m.contextstr,
+             snippet,
+             linenum.to_string(),
+             charnum.to_string(),
+             m.filepath.as_str().unwrap(),
+             m.mtype,
+             m.contextstr,
              );
 }
 
@@ -42,11 +48,11 @@ fn match_fn(m:Match) {
         panic!("MATCHSTR is empty - waddup?");
     }
     println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
-                                    linenum.to_string(),
-                                    charnum.to_string(),
-                                    m.filepath.as_str().unwrap(),
-                                    m.mtype,
-                                    m.contextstr
+             linenum.to_string(),
+             charnum.to_string(),
+             m.filepath.as_str().unwrap(),
+             m.mtype,
+             m.contextstr
              );
 }
 
@@ -153,9 +159,12 @@ fn print_usage() {
 #[cfg(not(test))]
 fn main() {
     if std::env::var("RUST_SRC_PATH").is_err() {
-        println!("RUST_SRC_PATH environment variable must be set");
-        std::env::set_exit_status(1);
-        return;
+        let default_env_path = "/home/bollu/prog/rust/src";
+        //print!("RUST_SRC_PATH is not set. setting to {}", default_env_path);
+        std::env::set_var("RUST_SRC_PATH", default_env_path);
+        //println!("RUST_SRC_PATH environment variable must be set");
+        //std::env::set_exit_status(1);
+        //return;
     }
 
     let args: Vec<String> = std::env::args().collect();
@@ -180,4 +189,59 @@ fn main() {
             return;
         }
     }
+}
+
+
+#[no_mangle]
+pub extern "C" fn complete_with_snippet_ffi(linenum : usize, charnum : usize, fname_raw: *const c_char, out_raw: *mut c_char) {
+
+
+    fn gen_match_str(m : Match) -> String {
+        let (linenum, charnum) = match scopes::point_to_coords_from_file(&m.filepath, m.point) {
+            Some(point) => point,
+            None => return String::from_str("PANIC: no point found")
+        };
+        if m.matchstr == "" {
+            return String::from_str("PANIC: MATCHSTR is empty")
+        }
+
+        let snippet = racer::snippets::snippet_for_match(&m);
+        let match_string = format!("MATCH {};{};{};{};{};{:?};{}", m.matchstr,
+                                   snippet,
+                                   linenum.to_string(),
+                                   charnum.to_string(),
+                                   m.filepath.as_str().unwrap(),
+                                   m.mtype,
+                                   m.contextstr,
+                                   );
+        match_string
+    };
+
+
+
+
+    let fpath =  {
+        let fname_bytes = unsafe { ffi::c_str_to_bytes(&fname_raw) };
+        let fname = std::str::from_utf8(fname_bytes).ok().unwrap();  
+        Path::new(fname)
+    };
+
+
+    let src = racer::load_file(&fpath);
+    let line = &*getline(&fpath, linenum);
+    let (start, pos) = racer::util::expand_ident(line, charnum);        
+    let point = scopes::coords_to_point(&*src, linenum, charnum);
+
+    let iter = racer::complete_from_file(&*src, &fpath, point);
+
+    let mut output_string = String::new();    
+    for m in iter {
+        let mut match_string = gen_match_str(m);
+        output_string.push_str(match_string.as_slice());
+        output_string.push_str("\n");
+        
+    }
+
+    let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
+    unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
 }
