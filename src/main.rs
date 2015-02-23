@@ -192,34 +192,48 @@ fn main() {
 }
 
 
+fn gen_match_string_for_snippet(m : Match) -> String {
+    let (linenum, charnum) = match scopes::point_to_coords_from_file(&m.filepath, m.point) {
+        Some(point) => point,
+        None => return String::from_str("PANIC: no point found")
+    };
+    if m.matchstr == "" {
+        return String::from_str("PANIC: MATCHSTR is empty")
+    }
+
+    let snippet = racer::snippets::snippet_for_match(&m);
+    let match_string = format!("MATCH {};{};{};{};{};{:?};{}", m.matchstr,
+                               snippet,
+                               linenum.to_string(),
+                               charnum.to_string(),
+                               m.filepath.as_str().unwrap(),
+                               m.mtype,
+                               m.contextstr,
+                               );
+    match_string
+}
+
+
+fn gen_match_str_for_fn_defn(m : Match) -> String { 
+    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
+    if m.matchstr == "" {
+        panic!("MATCHSTR is empty - waddup?");
+    }
+
+    let match_string = format!("MATCH {},{},{},{},{:?},{}", m.matchstr,
+             linenum.to_string(),
+             charnum.to_string(),
+             m.filepath.as_str().unwrap(),
+             m.mtype,
+             m.contextstr
+             );
+
+    match_string
+
+}
+
 #[no_mangle]
 pub extern "C" fn complete_with_snippet_ffi(linenum : usize, charnum : usize, fname_raw: *const c_char, out_raw: *mut c_char) {
-
-
-    fn gen_match_str(m : Match) -> String {
-        let (linenum, charnum) = match scopes::point_to_coords_from_file(&m.filepath, m.point) {
-            Some(point) => point,
-            None => return String::from_str("PANIC: no point found")
-        };
-        if m.matchstr == "" {
-            return String::from_str("PANIC: MATCHSTR is empty")
-        }
-
-        let snippet = racer::snippets::snippet_for_match(&m);
-        let match_string = format!("MATCH {};{};{};{};{};{:?};{}", m.matchstr,
-                                   snippet,
-                                   linenum.to_string(),
-                                   charnum.to_string(),
-                                   m.filepath.as_str().unwrap(),
-                                   m.mtype,
-                                   m.contextstr,
-                                   );
-        match_string
-    };
-
-
-
-
     let fpath =  {
         let fname_bytes = unsafe { ffi::c_str_to_bytes(&fname_raw) };
         let fname = std::str::from_utf8(fname_bytes).ok().unwrap();  
@@ -236,7 +250,7 @@ pub extern "C" fn complete_with_snippet_ffi(linenum : usize, charnum : usize, fn
 
     let mut output_string = String::new();    
     for m in iter {
-        let mut match_string = gen_match_str(m);
+        let mut match_string = gen_match_string_for_snippet(m);
         output_string.push_str(match_string.as_slice());
         output_string.push_str("\n");
         
@@ -245,3 +259,32 @@ pub extern "C" fn complete_with_snippet_ffi(linenum : usize, charnum : usize, fn
     let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
     unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
 }
+
+
+pub extern "C" fn find_definition_ffi(linenum : usize, charnum : usize, fname_raw: *const c_char, out_raw: *mut c_char) {
+    let fpath =  {
+        let fname_bytes = unsafe { ffi::c_str_to_bytes(&fname_raw) };
+        let fname = std::str::from_utf8(fname_bytes).ok().unwrap();  
+        Path::new(fname)
+    };
+    let src = racer::load_file(&fpath);
+    let pos = scopes::coords_to_point(&*src, linenum, charnum);
+
+    let opt_defn = racer::find_definition(&*src, &fpath, pos);
+
+    match opt_defn {
+        Some(defn) => {
+            let mut match_string = gen_match_str_for_fn_defn(defn);
+            let mut output_string = String::new();    
+    
+            output_string.push_str(match_string.as_slice());
+            output_string.push_str("\n");
+            
+            let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
+           unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
+        }
+
+        None => {}
+    }
+}
+    
