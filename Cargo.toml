@@ -10,5 +10,11 @@ authors = ["Phil Dawes <phil@phildawes.net>"]
 name = "racer"
 path = "src/main.rs"
 
+[lib]
+name ="racer-lib"
+path = "src/main.rs"
+crate-type = ["dylib"]
+
+
 [profile.release]
 debug = true

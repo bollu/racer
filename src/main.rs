@@ -11,6 +11,12 @@ extern crate libc;
 use libc::c_char;
 //for c string
 use std::ffi;
+//for channels to send data around
+use std::sync::mpsc::channel;
+//for recieving data
+use std::sync::mpsc;
+//for spawn
+use std::thread;
 
 #[cfg(not(test))]
 use racer::Match;
@@ -234,19 +240,15 @@ fn gen_match_str_for_fn_defn(m : Match) -> String {
 }
 
 #[no_mangle]
-pub extern "C" fn complete_with_snippet_ffi(linenum : usize, charnum : usize, fname_raw: *const c_char, out_raw: *mut c_char) {
-    let fpath =  {
-        let fname_bytes = unsafe { ffi::c_str_to_bytes(&fname_raw) };
-        let fname = std::str::from_utf8(fname_bytes).ok().unwrap();  
-        Path::new(fname)
-    };
-
+pub extern "C" fn complete_with_snippet_ffi_may_panic(linenum : usize, charnum : usize, fpath: Path, tx: mpsc::Sender<String>) {
+    
 
     let src = racer::load_file(&fpath);
     let line = &*getline(&fpath, linenum);
     let (start, pos) = racer::util::expand_ident(line, charnum);        
     let point = scopes::coords_to_point(&*src, linenum, charnum);
 
+    //HACK: this can panic
     let iter = racer::complete_from_file(&*src, &fpath, point);
 
     let mut output_string = String::new();    
@@ -257,12 +259,46 @@ pub extern "C" fn complete_with_snippet_ffi(linenum : usize, charnum : usize, fn
         
     }
 
-    let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
-    unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
+    tx.send(output_string);
+//    let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
+//    unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
 }
 
 
-pub extern "C" fn find_definition_ffi(linenum : usize, charnum : usize, fname_raw: *const c_char, out_raw: *mut c_char) {
+
+#[no_mangle]
+pub extern "C" fn complete_with_snippet_ffi(linenum : usize, charnum : usize, fname_raw: *const c_char, out_raw: *mut c_char) {
+    //null out the out string just in case
+    {
+        let null_string = ffi::CString::from_slice("PANICD BITCH".as_bytes());
+        unsafe { libc::strcpy(out_raw, null_string.as_ptr()); }
+    }
+
+   let (tx, rx) = channel();
+
+   let fpath =  {
+        let fname_bytes = unsafe { ffi::c_str_to_bytes(&fname_raw) };
+        let fname = std::str::from_utf8(fname_bytes).ok().unwrap();  
+        Path::new(fname)
+    };
+
+
+    thread::spawn(move || { complete_with_snippet_ffi_may_panic(linenum, charnum, fpath, tx) });
+
+
+    match rx.recv() {
+        Ok(output_string) => {
+            let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
+            unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
+
+        }
+
+        Err(_) => {}
+    }
+    
+}
+
+pub extern "C" fn find_definition_ffi_may_panic(linenum : usize, charnum : usize, fname_raw: *const c_char) {
     let fpath =  {
         let fname_bytes = unsafe { ffi::c_str_to_bytes(&fname_raw) };
         let fname = std::str::from_utf8(fname_bytes).ok().unwrap();  
@@ -281,8 +317,8 @@ pub extern "C" fn find_definition_ffi(linenum : usize, charnum : usize, fname_ra
             output_string.push_str(match_string.as_slice());
             output_string.push_str("\n");
             
-            let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
-           unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
+            //let output_c_str = ffi::CString::from_slice(output_string.as_bytes());
+           //unsafe { libc::strcpy(out_raw, output_c_str.as_ptr()); }
         }
 
         None => {}
