@@ -303,13 +303,13 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
             }
         }
     }
-    return out.into_iter();
+    return out.into_iter()
 }
 
 pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match> {
     debug!("do_file_search {}",searchstr);
     let mut out = Vec::new();
-    let srcpaths = std::env::var("RUST_SRC_PATH").unwrap_or("".to_string());
+    let srcpaths = "/home/bollu/prog/rust/src".to_string(); //std::env::var("RUST_SRC_PATH").unwrap_or("".to_string());
     debug!("do_file_search srcpaths {}",srcpaths);
     let mut v = (&srcpaths[]).split_str(PATH_SEP).collect::<Vec<_>>();
     v.push(currentdir.as_str().unwrap());
@@ -484,7 +484,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
 }
 
 pub fn get_crate_file(name: &str) -> Option<Path> {
-    let srcpaths = std::env::var("RUST_SRC_PATH").unwrap();
+    let srcpaths = "/home/bollu/prog/rust/src".to_string(); //std::env::var("RUST_SRC_PATH").unwrap_or("".to_string());
     let v = (&srcpaths[]).split_str(PATH_SEP).collect::<Vec<_>>();
     for srcpath in v.into_iter() {
         {
@@ -750,6 +750,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
     }
 }
 
+
 pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType, 
                            namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
@@ -758,10 +759,12 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
-    let srcpaths = match std::env::var("RUST_SRC_PATH") { 
+    /*let srcpaths = match std::env::var("RUST_SRC_PATH") { 
         Ok(paths) => paths,
         Err(_) => return out.into_iter()
-    };
+    };*/
+    let srcpaths = "/home/bollu/prog/rust/src".to_string(); //std::env::var("RUST_SRC_PATH").unwrap_or("".to_string());
+
 
     let v = (&srcpaths[]).split_str(PATH_SEP).collect::<Vec<_>>();
 

@@ -220,6 +220,66 @@ pub fn load_file_and_mask_comments(filepath: &old_path::Path) -> String {
     return msrc;
 }
 
+pub fn complete_from_file_ffi(src: &str, filepath: &old_path::Path, pos: usize) -> vec::IntoIter<Match> {
+    let start = scopes::get_start_of_search_expr(src, pos);
+    
+    //HACK
+    return Vec::new().into_iter();
+
+    let expr = &src[start..pos];
+
+    let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
+
+    let mut out = Vec::new();
+
+        
+                
+    match completetype {
+        /*
+        CompletionType::CompleteField => {
+            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+            //debug!("complete_from_file context is {:?}", context);
+            context.map(|ty| {
+                match ty {
+                    Ty::TyMatch(m) => {
+                        for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith) {
+                            out.push(m)
+                        }
+                    }
+                    _ => {}
+                }
+            });
+        }
+        */
+
+        /*CompletionType::CompletePath => {
+            let mut v = expr.split_str("::").collect::<Vec<_>>();
+            let mut global = false;
+            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
+                v.remove(0);
+                global = true;
+            }
+
+            let segs = v
+                .iter()
+                .map(|x| PathSegment{name:x.to_string(), types: Vec::new()})
+                .collect::<Vec<_>>();
+            let path = Path{ global: global, segments: segs };
+
+            for m in nameres::resolve_path(&path, filepath, pos, 
+                                         SearchType::StartsWith, Namespace::BothNamespaces) {
+                out.push(m);
+            }
+        },
+        */
+        _  => {}
+        
+        
+    }
+
+    return out.into_iter()    
+}
+
 pub fn complete_from_file(src: &str, filepath: &old_path::Path, pos: usize) -> vec::IntoIter<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);

@@ -214,6 +214,7 @@ fn gen_match_string_for_snippet(m : Match) -> String {
 }
 
 
+
 fn gen_match_str_for_fn_defn(m : Match) -> String { 
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
     if m.matchstr == "" {
